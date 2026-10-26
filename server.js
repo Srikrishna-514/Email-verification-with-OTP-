@@ -1,40 +1,18 @@
 const express = require("express");
 const dotenv = require("dotenv");
-const { userModel } = require("./Models/user.js");
 const connectDB = require("./Config/db.js");
 const { router } = require("./Routes/authRoutes.js");
-const app = express();
-dotenv.config();
-app.use(express.json());
 const dns = require("node:dns");
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
+dotenv.config();
 
-connectDB();
+const app = express();
+
+app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use((req, res, next) => {
-  console.log("REQUEST RECEIVED:", req.method, req.originalUrl);
-  next();
-});
 
-app.use("/auth", router);
+app.use("/auth/", router);
 
-app.get("/db-health", async (req, res) => {
-  try {
-    await userModel.db.db.admin().ping();
-
-    return res.status(200).json({
-      status: "OK",
-      message: "MongoDB ping successful",
-    });
-  } catch (error) {
-    console.error("DB HEALTH ERROR:", error.message);
-
-    return res.status(500).json({
-      status: "ERROR",
-      message: "MongoDB ping failed",
-    });
-  }
-});
 app.use((req, res) => {
   res.status(404).json({
     msg: "Endpoint not found",
@@ -42,6 +20,16 @@ app.use((req, res) => {
     method: req.method,
   });
 });
-app.listen(process.env.port, () => {
-  console.log(`server is running on port ${process.env.port} `);
-});
+
+const PORT = process.env.PORT || 3000;
+
+connectDB()
+  .then(() => {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  })
+  .catch((error) => {
+    console.error("Application startup failed:", error.message);
+    process.exit(1);
+  });
