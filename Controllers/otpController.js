@@ -2,7 +2,8 @@ const { userModel } = require("../Models/user.js");
 const { otpModel } = require("../Models/EmailOtp.js");
 const { hashOtp } = require("../utils/hashOtp.js");
 const { sendEmail } = require("../utils/sendMails.js");
-const otp = require("../utils/genarateOtp.js");
+const generateOtp = require("../utils/genarateOtp.js");
+
 const sendOTP = async (req, res) => {
   try {
     const { email } = req.body;
@@ -27,24 +28,33 @@ const sendOTP = async (req, res) => {
       });
     }
 
-    // Generate a secure six-digit OTP
-    // const otp = crypto.randomInt(100000, 1000000).toString();
+    // Generate an actual six-digit OTP
+    const otp = generateOtp();
 
-    // Hash the OTP
+    // Hash the OTP before storing it
     const otpHash = hashOtp(otp);
 
-    // Invalidate any previous OTP for this user
+    // Remove previous OTPs for this user
     await otpModel.deleteMany({ userId: user._id });
 
-    // Save the new OTP hash and expiry time
+    // Save the hashed OTP with 5-minute expiry
     await otpModel.create({
       userId: user._id,
       otpHash,
       expiresAt: new Date(Date.now() + 5 * 60 * 1000),
     });
 
-    // Send the original OTP by email
-    await sendEmail(user.email, otp);
+    console.log("Sending OTP email...");
+
+    // Send email; wait at most 15 seconds
+    await Promise.race([
+      sendEmail(user.email, otp),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Email sending timed out")), 15000),
+      ),
+    ]);
+
+    console.log("OTP email sent successfully");
 
     return res.status(200).json({
       message: "OTP sent successfully",
